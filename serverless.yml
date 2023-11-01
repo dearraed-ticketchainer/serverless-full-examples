@@ -1,0 +1,368 @@
+service: serverless-complete-coding-new-2
+plugins: 
+  - serverless-better-credentials
+  - serverless-appsync-plugin
+  - serverless-s3-sync
+  - serverless-webpack
+  - serverless-step-functions
+
+frameworkVersion: '3'
+
+custom:
+   tableName: raed-player-points-table-new-2
+   sqsTableName: raed-sqs-appsync-table-new-2
+   signupTableName: raed-signup-table-name
+   bucketName: raedserverlessprojectuploadbucket-12312-new-2
+   sqsQueueUrl: https://sqs.us-east-1.amazonaws.com/116581174332/raed-standard-queue
+   IS_OFFLINE: false
+   raedDynamoDBTableCognito: raed-dynamodb-table-cognito
+   imageUploadBucket: raed-image-upload-bucket-demo-aws-2
+   s3Sync: 
+       - bucketName: ${self:custom.bucketName}
+         localDir: UploadData
+   dynamodb: 
+       stages:
+         - dev
+       start:
+         docker: true
+         port: 8000
+         inMemory: true
+         migrate: true
+       migration:
+           dir: offline/migrations
+
+stepFunctions:
+    validate: true
+    stateMachines:
+        reminderEmail:
+            name: reminderEmail
+            events:
+                - http:
+                      path: signup-with-reminders
+                      method: POST
+                      cors: true
+            definition: ${file(./stepFunction.yml)}
+
+  
+  
+appSync:
+      name: raed-appsync-cognito
+      schema: 
+        - 'schemas/schema-cognito.graphql'
+      authentication:
+        type: 'AMAZON_COGNITO_USER_POOLS'
+        config:
+          userPoolId: 
+            Ref: CognitoUserPool2
+          appIdClientRegex: 
+            Ref: CognitoUserPoolClient
+
+# appSync:
+#     name: raed-api-appsync-sqs
+#     schema: 'schemas/schema.graphql'
+#     authentication:
+#       type: API_KEY
+#     dataSources:
+#       raedDatasourceCallSqs:
+#         type: 'AWS_LAMBDA'
+#         config:
+#           function:
+#             timeout: 30
+#             handler: 'lambdas/endpoints/callSqs.handler'
+#     pipelineFunctions:
+#       callSqs:
+#         handler: lambdas/endpoints/callSqs.handler'
+#         dataSource: raedDatasourceCallSqs
+#     resolvers:
+#       Mutation.sendMessage:
+#         type: Mutation
+#         field: sendMessage
+#         functions:
+#           - callSqs
+
+    # dataSources:
+    #   userDataSource:
+    #     name: UserDataSource
+    #     type: AMAZON_DYNAMODB
+    #     config:
+    #       tableName: UserTable
+
+    
+  
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  profile: sso-dev
+  environment:
+      tableName: ${self:custom.tableName}
+      sqsTableName: ${self:custom.sqsTableName}
+      bucketName: ${self:custom.bucketName}
+      IS_OFFLINE: ${self:custom.IS_OFFLINE}
+      sqsQueueUrl: ${self:custom.sqsQueueUrl}
+      signupTableName: ${self:custom.signupTableName}
+      imageUploadBucket: ${self.custom.imageUploadBucket}
+      raedDynamoDBTableCognito: ${self.custom.raedDynamoDBTableCognito}
+  iamRoleStatements:
+      - Effect: Allow
+        Action:
+              - dynamodb:*
+              - s3:*
+              - ses:*
+              - sns:Publish
+              - comprehend:*
+              - ses:*
+              - sqs:*
+        Resource: '*'
+  apiGateway:
+    # apiKeys:
+    #   - free:
+    #       - myFreeKey
+    #       - myFreekey2
+    #   - paid:
+    #       - myPaidKey  
+    #       - myPaidKey2
+    usagePlan:
+      - free:
+          quota:
+            limit: 5000
+            offset: 2
+            period: MONTH
+          throttle:
+            burstLimit: 200
+            rateLimit: 100
+      - paid:
+          quota:
+            limit: 50000
+            offset: 1
+            period: MONTH
+          throttle:
+            burstLimit: 2000
+            rateLimit: 1000
+
+package: 
+    individually: true 
+
+functions:
+  raedGetUser:
+    handler: lambdas/endpoints/getUser.handler
+    events:
+      - http:
+          path: get-user/{ID}
+          method: get
+          cors: true
+          private: true
+  raedGetPlayerScore:
+    handler: lambdas/endpoints/getPlayerScore.handler
+    events:
+      - http:
+          path: get-player-score/{ID}
+          method: GET
+          cors: true
+  raedCreatePlayerScore:
+    handler: lambdas/endpoints/createPlayerScore.handler
+    events:
+      - http:
+          path: create-player-score/{ID}
+          method: POST
+          cors: true
+  raedUpdatePlayerScore:
+    handler: lambdas/endpoints/updatePlayerScore.handler
+    events:
+      - http:
+          path: update-player-score/{ID}
+          method: PUT
+          cors: true
+  raedGetGameScores:
+    handler: lambdas/endpoints/getGameScores.handler
+    events:
+      - http:
+          path: get-game-scores/{game}
+          method: GET
+          cors: true
+  raedCreateFile:
+    handler: lambdas/endpoints/createFile.handler
+    events:
+      - http:
+          path: createFile/{fileName}
+          method: POST
+          cors: true
+  createMessageDbFromSqs:
+    handler: lambdas/sqsFunctions/createMsgDb.handler
+    events:
+      - http:
+          path: createMsgDbFromSqs
+          method: POST
+          cors: true
+  proxy:
+    handler: lambdas/endpoints/proxy.handler
+    events:
+      - http:
+          path: chuck-norris/{proxy+}
+          method: ANY
+          integration: http-proxy
+          request:
+              uri: https://api.chucknorris.io/jokes/{proxy}
+              parameters:
+                  paths: 
+                      proxy: true
+  getFile:
+    handler: lambdas/endpoints/getFile.handler
+    events:
+        - http:
+              path: get-file/{fileName}
+              method: GET
+              cors: true
+  sendEmail:
+    handler: lambdas/endpoints/sendEmail.handler
+    events:
+      - http:
+          path: send-email
+          method: POST
+          cors: true
+  sendSMS:
+    handler: lambdas/endpoints/sendSMS.handler
+    events:
+      - http:
+          path: send-sms
+          method: POST
+          cors: true
+  analyse:
+    handler: lambdas/endpoints/analyse.handler
+    events:
+      - http:
+          path: analyse
+          method: POST
+          cors: true
+  imageUpload:
+    handler: lambdas/endpoints/imageUpload.handler
+    events:
+      - http:
+          path: image-upload
+          method: POST
+          cors: true
+  addSignup:
+    handler: lambdas/stepFunctionLambdas/addSignup.handler
+  getSignup:
+    handler: lambdas/stepFunctionLambdas/getSignup.handler
+  sendReminderEmail:
+    handler: lambdas/stepFunctionLambdas/sendReminderEmail.handler
+   
+  
+  # sendReminder:
+  #   handler: lambdas/scheduleTasks/reminderEmail.handler
+  #   events:
+  #       - schedule: cron(0 9 ? * * *)
+  # sendMorningNews:
+  #   handler: lambdas/scheduleTasks/reminderEmail.handler
+  #   events:
+  #       - schedule: cron(15 7 ? * * *)
+
+
+           
+
+
+resources:
+  Resources:
+    RaedDemoBucketUpload:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:custom.bucketName}
+    RaedImageUploadBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:custom.imageUploadBucket}
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: true
+          BlockPublicPolicy: true
+          IgnorePublicAcls: true
+          RestrictPublicBuckets: true
+    RaedDynamoDbTable:
+          Type: AWS::DynamoDB::Table
+          Properties:
+              TableName: ${self:custom.tableName}
+              AttributeDefinitions:
+                  - AttributeName: ID
+                    AttributeType: S
+                  - AttributeName: game  
+                    AttributeType: S
+              KeySchema:
+                  - AttributeName: ID
+                    KeyType: HASH
+              BillingMode: PAY_PER_REQUEST
+
+              GlobalSecondaryIndexes:
+                  - IndexName: game-index
+                    KeySchema: 
+                        - AttributeName: game
+                          KeyType: HASH
+                    Projection:
+                        ProjectionType: ALL
+    RaedDynamoDbSqsTable:
+          Type: AWS::DynamoDB::Table
+          Properties:
+              TableName: ${self:custom.sqsTableName}
+              AttributeDefinitions:
+                  - AttributeName: messageId  
+                    AttributeType: S
+                  - AttributeName: message
+                    AttributeType: S
+              KeySchema:
+                  - AttributeName: messageId
+                    KeyType: HASH
+              BillingMode: PAY_PER_REQUEST
+
+              GlobalSecondaryIndexes:
+                  - IndexName: message-index
+                    KeySchema: 
+                        - AttributeName: message
+                          KeyType: HASH
+                    Projection:
+                        ProjectionType: ALL
+    RaedEmailSignupTable:
+          Type: AWS::DynamoDB::Table
+          Properties:
+              TableName: ${self:custom.signupTableName}
+              AttributeDefinitions:
+                  - AttributeName: ID
+                    AttributeType: S
+              KeySchema:
+                  - AttributeName: ID
+                    KeyType: HASH
+              BillingMode: PAY_PER_REQUEST
+    CognitoUserPool2:
+      Type: AWS::Cognito::UserPool
+      Properties:
+        UserPoolName: ${sls:stage}-raed-user-pool
+        UsernameAttributes:
+          - email
+        AutoVerifiedAttributes:
+          - email
+
+    CognitoUserPoolClient:
+      Type: AWS::Cognito::UserPoolClient
+      Properties: 
+        ClientName: ${sls:stage}-raed-user-pool-client
+        UserPoolId:
+            Ref: CognitoUserPool2
+        ExplicitAuthFlows:
+            - ADMIN_NO_SRP_AUTH
+        GenerateSecret: false
+
+
+
+    RaedAssumeRole:
+        Type: AWS::IAM::Role
+        Properties:
+            RoleName: raedAssumeRole
+            AssumeRolePolicyDocument:
+                Version: '2012-10-17'
+                Statement:
+                    - Effect: Allow
+                      Principal: 
+                        Service:
+                            - lambda.amazonaws.com
+                            - apigateway.amazonaws.com
+                      Action:
+                        - sts:AssumeRole
+            

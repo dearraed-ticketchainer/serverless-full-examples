@@ -1,0 +1,20 @@
+schema {
+	query: Query
+	mutation: Mutation
+}
+
+type MessageIdType {
+    messageId: String
+  }
+
+type Mutation {
+  sendMessage(message: String): MessageIdType
+}
+type MessageReturnType {
+    messageId: String,
+	message: String
+  }
+
+type Query {
+	getPersistedSqsMessage(messageId: String): MessageReturnType
+}

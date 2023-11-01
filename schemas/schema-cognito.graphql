@@ -1,0 +1,19 @@
+schema {
+	query: Query
+	mutation: Mutation
+}
+
+
+type Query {
+  getUser: User
+}
+
+type Mutation {
+  signUp(email: String!, password: String!): User @aws_cognito_user_pools
+  signIn(email: String!, password: String!): User @aws_cognito_user_pools
+}
+
+type User {
+  id: ID!
+  email: String!
+}
