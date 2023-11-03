@@ -5,15 +5,56 @@ schema {
 
 
 type Query {
-  getUser: User
+  getMe(accessToken: String!): GetMeRes 
 }
 
 type Mutation {
-  signUp(email: String!, password: String!): User @aws_cognito_user_pools
-  signIn(email: String!, password: String!): User @aws_cognito_user_pools
+  signUp(email: String!, password: String!, group: String!): CreatedUser @aws_cognito_user_pools
+  signIn(username: String!, password: String!): AuthUser @aws_cognito_user_pools
+  forceChangePassword(username: String!, password: String!, session: String!): changePasswordRes @aws_cognito_user_pools  
 }
 
 type User {
-  id: ID!
+  id: ID
   email: String!
+  username: String
+  group: String
+}
+
+type CreatedUser {
+  email: String!
+  userStatus: String
+  group: String
+  createdAt: String
+}
+
+type AuthUser {
+  username: String
+  email: String
+  AccessToken: String
+   RefreshToken: String
+   IdToken: String
+     ChallengeName: String
+  Session : String
+}
+
+
+type changePasswordRes {
+  username: String!
+  msg: String!
+  AccessToken: String!
+  RefreshToken: String!
+}
+
+type GetMeRes {
+  username: String!, 
+  UserAttributes: [UserAttributes]
+  groupInDynamo: String
+  createdAt: String, 
+  UserStatus: String
+}
+
+type UserAttributes {
+  Name: String
+  Value: String
 }

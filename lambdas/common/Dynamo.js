@@ -26,6 +26,23 @@ const docClient = DynamoDBDocumentClient.from(client);
         return data.Item;
    }
 
+   export const getByObj = async(obj, TableName) => {
+    const command = new GetCommand({
+        TableName,
+        Key: obj
+    });
+
+    const data = await docClient.send(command);
+
+    if(!data || !data.Item){
+        throw Error(`There was an error fetching the data for ID of ${obj} from ${TableName}`)
+    }
+
+    console.log("data : ", data)
+
+    return data.Item;
+}
+
    export const write = async (data, TableName) => {
     console.log("TableName: ", TableName);
         // if(!data.ID){

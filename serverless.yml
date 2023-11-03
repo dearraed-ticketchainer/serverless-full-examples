@@ -45,17 +45,7 @@ stepFunctions:
 
   
   
-appSync:
-      name: raed-appsync-cognito
-      schema: 
-        - 'schemas/schema-cognito.graphql'
-      authentication:
-        type: 'AMAZON_COGNITO_USER_POOLS'
-        config:
-          userPoolId: 
-            Ref: CognitoUserPool2
-          appIdClientRegex: 
-            Ref: CognitoUserPoolClient
+
 
 # appSync:
 #     name: raed-api-appsync-sqs
@@ -101,8 +91,8 @@ provider:
       IS_OFFLINE: ${self:custom.IS_OFFLINE}
       sqsQueueUrl: ${self:custom.sqsQueueUrl}
       signupTableName: ${self:custom.signupTableName}
-      imageUploadBucket: ${self.custom.imageUploadBucket}
-      raedDynamoDBTableCognito: ${self.custom.raedDynamoDBTableCognito}
+      imageUploadBucket: ${self:custom.imageUploadBucket}
+      raedDynamoDBTableCognito: ${self:custom.raedDynamoDBTableCognito}
   iamRoleStatements:
       - Effect: Allow
         Action:
@@ -113,6 +103,7 @@ provider:
               - comprehend:*
               - ses:*
               - sqs:*
+              - cognito-idp:*
         Resource: '*'
   apiGateway:
     # apiKeys:
@@ -319,15 +310,15 @@ resources:
                           KeyType: HASH
                     Projection:
                         ProjectionType: ALL
-    RaedEmailSignupTable:
+    RaedCognitoTable:
           Type: AWS::DynamoDB::Table
           Properties:
-              TableName: ${self:custom.signupTableName}
+              TableName: ${self:custom.raedDynamoDBTableCognito}
               AttributeDefinitions:
-                  - AttributeName: ID
+                  - AttributeName: email
                     AttributeType: S
               KeySchema:
-                  - AttributeName: ID
+                  - AttributeName: email
                     KeyType: HASH
               BillingMode: PAY_PER_REQUEST
     CognitoUserPool2:
@@ -349,8 +340,6 @@ resources:
             - ADMIN_NO_SRP_AUTH
         GenerateSecret: false
 
-
-
     RaedAssumeRole:
         Type: AWS::IAM::Role
         Properties:
@@ -365,4 +354,77 @@ resources:
                             - apigateway.amazonaws.com
                       Action:
                         - sts:AssumeRole
+
+
+
             
+appSync:
+    name: raed-appsync-cognito
+    schema: 
+      - 'schemas/schema-cognito.graphql'
+    authentication:
+      type: 'API_KEY'
+      config:
+        userPoolId: 
+          Ref: CognitoUserPool2
+        appIdClientRegex: 
+          Ref: CognitoUserPoolClient
+    dataSources:
+      raedDatasourceSignupCognito:
+        type: 'AWS_LAMBDA'
+        config:
+          function:
+            timeout: 30
+            handler: 'lambdas/cognito/singup.handler'
+      raedDatasourceSigninCognito:
+        type: 'AWS_LAMBDA'
+        config:
+          function:
+            timeout: 30
+            handler: 'lambdas/cognito/signin.handler'
+      raedDatasourceGetMeCognito:
+        type: 'AWS_LAMBDA'
+        config:
+          function:
+            timeout: 30
+            handler: 'lambdas/cognito/getMe.handler'
+      raedDatasourChangePassCog:
+        type: 'AWS_LAMBDA'
+        config:
+          function:
+            timeout: 30
+            handler: 'lambdas/cognito/forceChangePassword.handler'
+    pipelineFunctions:
+      singupCognito:
+        handler: lambdas/cognito/singup.handler'
+        dataSource: raedDatasourceSignupCognito
+      singinCognito:
+        handler: lambdas/cognito/signin.handler'
+        dataSource: raedDatasourceSigninCognito
+      getMeCognito:
+        handler: lambdas/cognito/getMe.handler'
+        dataSource: raedDatasourceGetMeCognito
+      forceChangePasswordCognito:
+        handler: lambdas/cognito/forceChangePassword.handler'
+        dataSource: raedDatasourChangePassCog
+    resolvers:
+      Mutation.signUp:
+        type: Mutation
+        field: signUp
+        functions:
+          - singupCognito
+      Mutation.signIn:
+        type: Mutation
+        field: signIn
+        functions:
+          - singinCognito
+      Query.getMe:
+        type: Query
+        field: getMe
+        functions:
+          - getMeCognito
+      Mutation.forceChangePassword:
+        type: Mutation
+        field: forceChangePassword
+        functions:
+          - forceChangePasswordCognito
